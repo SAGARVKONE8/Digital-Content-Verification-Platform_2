@@ -60,7 +60,7 @@ cd backend/blockchain
 npx hardhat ignition deploy ignition/modules/DeployRegistry.ts --network localhost
 ```
 
-This will print a contract address (e.g., 0x5FbDB2315678afecb367f032d93F642f64180aa3). Make sure this address matches the CONTRACT_ADDRESS in your backend/index.js file.
+This prints a contract address (e.g., `0x5FbDB2315678afecb367f032d93F642f64180aa3`). Use that value in `backend/.env` as `CONTRACT_ADDRESS`.
 
 ### 3. Run the Backend API
 
@@ -69,6 +69,9 @@ In the same second terminal (or a new one), start the main API server:
 ```bash
 # Navigate to the main backend
 cd backend
+
+# Create your local env file once
+cp .env.example .env
 
 # Run the server
 npm run dev
@@ -82,11 +85,49 @@ This will start your API server on http://localhost:3001 and connect to your loc
 # Navigate to the frontend
 cd frontend
 
+# Create your local env file once
+cp .env.example .env
+
 # Run the app
 npm run dev
 ```
 
 This will open your React app (usually on http://localhost:5173) in your browser, fully connected to your backend.
+
+## 🌐 Deployment (Vercel + Render)
+
+### Frontend (Vercel)
+
+1. Push your code to GitHub.
+2. In Vercel, import the repo and set:
+   - Root Directory: `frontend`
+   - Build Command: `npm run build`
+   - Output Directory: `dist`
+3. Add this environment variable in Vercel:
+   - `VITE_API_BASE_URL=https://<your-render-service>.onrender.com`
+4. Deploy.
+
+### Backend (Render)
+
+1. In Render, create a new **Web Service** from your GitHub repo.
+2. Set:
+   - Root Directory: `backend`
+   - Build Command: `npm install`
+   - Start Command: `npm start`
+3. Add backend environment variables:
+   - `PORT=5000` (or leave unset and let Render inject it)
+   - `CORS_ORIGIN=https://<your-vercel-project>.vercel.app`
+   - `RPC_URL=<your-chain-rpc-url>`
+   - `CONTRACT_ADDRESS=<deployed-contract-address>`
+   - `PRIVATE_KEY=<wallet-private-key-for-writes>`
+   - `PINATA_JWT_TOKEN=<pinata-jwt-token>`
+     - or use `PINATA_API_KEY` and `PINATA_API_SECRET`
+4. Deploy and verify health route:
+   - `https://<your-render-service>.onrender.com/api`
+
+### Final Architecture
+
+Frontend (Vercel) -> Backend API (Render) -> Blockchain + IPFS (Pinata)
 
 ### 🗺️ MVP Development Roadmap
 This project is in active development. Here is the planned roadmap:

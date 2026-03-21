@@ -29,14 +29,25 @@ if (pinataJwtToken) {
 }
 
 // --- ETHERS CONTRACT SETUP ---
-const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
-const LOCALHOST_RPC_URL = "http://127.0.0.1:8545/";
+const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+const RPC_URL = process.env.RPC_URL || 'http://127.0.0.1:8545/';
+const PRIVATE_KEY = process.env.PRIVATE_KEY;
 
-const provider = new ethers.JsonRpcProvider(LOCALHOST_RPC_URL);
-const signer = await provider.getSigner(0);
+const provider = new ethers.JsonRpcProvider(RPC_URL);
+const isLocalRpc = /127\.0\.0\.1|localhost/.test(RPC_URL);
+
+let signer;
+if (PRIVATE_KEY) {
+  signer = new ethers.Wallet(PRIVATE_KEY, provider);
+} else if (isLocalRpc) {
+  signer = await provider.getSigner(0);
+} else {
+  throw new Error('Missing PRIVATE_KEY for non-local RPC_URL. Set PRIVATE_KEY in backend environment variables.');
+}
+
 const genesisContract = new ethers.Contract(CONTRACT_ADDRESS, abi.abi, signer);
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
-console.log(`✅ Connected to local blockchain. Contract loaded at ${CONTRACT_ADDRESS}`);
+console.log(`✅ Connected to blockchain RPC ${RPC_URL}. Contract loaded at ${CONTRACT_ADDRESS}`);
 
 // --- Ensure uploads directory exists ---
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
@@ -48,7 +59,13 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 // --- Middleware ---
 const app = express();
 const PORT = process.env.PORT || 3001;
-app.use(cors()); 
+const corsOrigin = process.env.CORS_ORIGIN;
+if (corsOrigin) {
+  const allowedOrigins = corsOrigin.split(',').map((origin) => origin.trim()).filter(Boolean);
+  app.use(cors({ origin: allowedOrigins }));
+} else {
+  app.use(cors());
+}
 app.use(express.json());
 
 // --- Multer Configuration ---
@@ -296,5 +313,5 @@ app.use((err, req, res, next) => {
 
 // --- Server Startup ---
 app.listen(PORT, () => {
-  console.log(`🚀 Digital Content Verification server listening on http://localhost:${PORT}`);
+  console.log(`🚀 Digital Content Verification server listening on port ${PORT}`);
 });

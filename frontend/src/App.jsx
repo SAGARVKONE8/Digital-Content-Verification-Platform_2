@@ -3,6 +3,7 @@ import axios from 'axios';
 import './App.css';
 
 const IPFS_GATEWAY = "https://gateway.pinata.cloud/ipfs/";
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001').replace(/\/$/, '');
 const ACCEPTED_FILE_TYPES = "image/*,video/*,audio/*,.pdf,.csv,.txt,.doc,.docx,.xls,.xlsx,.ppt,.pptx";
 const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = new Set([
@@ -68,7 +69,7 @@ function App() {
     const formData = new FormData();
     formData.append('file', uploadFile);
     try {
-      const response = await axios.post('http://localhost:3001/api/upload', formData, {
+      const response = await axios.post(`${API_BASE_URL}/api/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       console.log('Upload response:', response.data);
@@ -106,7 +107,7 @@ function App() {
     const formData = new FormData();
     formData.append('file', verifyFile);
     try {
-      const response = await axios.post('http://localhost:3001/api/verify', formData, {
+      const response = await axios.post(`${API_BASE_URL}/api/verify`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       console.log('Verify response:', response.data);
