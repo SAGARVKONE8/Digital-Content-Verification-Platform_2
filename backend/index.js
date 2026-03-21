@@ -85,6 +85,118 @@ const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.webm', '.mkv', '.avi', '.m4v
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.ogg', '.m4a', '.flac', '.aac']);
 const DOCUMENT_EXTENSIONS = new Set(['.pdf', '.csv', '.txt', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx']);
 const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB
+const WATERMARK_STRICT = process.env.WATERMARK_STRICT === 'true';
+const PYTHON_BIN = (process.env.PYTHON_BIN || '').trim();
+
+const getPythonCandidates = () => {
+  const defaults = ['python', 'python3'];
+  if (!PYTHON_BIN) return defaults;
+  return [PYTHON_BIN, ...defaults.filter((candidate) => candidate !== PYTHON_BIN)];
+};
+
+const extractErrorMessage = (error) => {
+  const candidates = [
+    typeof error?.shortMessage === 'string' ? error.shortMessage : '',
+    typeof error?.stderr === 'string' ? error.stderr : '',
+    typeof error?.reason === 'string' ? error.reason : '',
+    typeof error?.message === 'string' ? error.message : '',
+  ];
+
+  return candidates.map((value) => value.trim()).find(Boolean) || 'Unknown error';
+};
+
+const runWatermarkScript = async (filePath, watermarkText) => {
+  const pythonCandidates = getPythonCandidates();
+  let lastError;
+
+  for (const pythonCommand of pythonCandidates) {
+    try {
+      await execa(pythonCommand, ['src/watermark.py', filePath, watermarkText]);
+      return { pythonCommand };
+    } catch (error) {
+      lastError = error;
+      console.warn(`Watermark command "${pythonCommand}" failed: ${extractErrorMessage(error)}`);
+    }
+  }
+
+  const combinedError = new Error(`Watermark script failed for commands: ${pythonCandidates.join(', ')}`);
+  combinedError.cause = lastError;
+  throw combinedError;
+};
+
+const classifyProcessingError = (error) => {
+  const rawMessage = extractErrorMessage(error);
+  const causeMessage = extractErrorMessage(error?.cause || {});
+  const combinedMessage = `${rawMessage} ${causeMessage}`.toLowerCase();
+
+  if (error?.code === 'CALL_EXCEPTION') {
+    return {
+      status: 409,
+      error: 'File already registered on-chain.',
+      hint: 'Try Verify for this file instead of Register.',
+      isDuplicate: true,
+    };
+  }
+
+  if (combinedMessage.includes('insufficient funds')) {
+    return {
+      status: 500,
+      error: 'Blockchain transaction failed due to insufficient gas funds.',
+      hint: 'Fund the PRIVATE_KEY wallet on your selected network and retry.',
+    };
+  }
+
+  if (
+    combinedMessage.includes('failed to detect network') ||
+    combinedMessage.includes('econnrefused') ||
+    combinedMessage.includes('enotfound') ||
+    combinedMessage.includes('network error')
+  ) {
+    return {
+      status: 500,
+      error: 'Could not connect to blockchain RPC.',
+      hint: 'Check RPC_URL and network status in Render environment variables.',
+    };
+  }
+
+  if (
+    combinedMessage.includes('could not decode result data') ||
+    combinedMessage.includes('missing revert data') ||
+    combinedMessage.includes('bad data')
+  ) {
+    return {
+      status: 500,
+      error: 'Contract call failed.',
+      hint: 'Check CONTRACT_ADDRESS and ABI/network match.',
+    };
+  }
+
+  if (combinedMessage.includes('pinata')) {
+    return {
+      status: 500,
+      error: 'IPFS pinning failed.',
+      hint: 'Check PINATA_JWT_TOKEN or PINATA_API_KEY/PINATA_API_SECRET in Render.',
+    };
+  }
+
+  if (
+    combinedMessage.includes('watermark') ||
+    combinedMessage.includes('cv2') ||
+    combinedMessage.includes('python')
+  ) {
+    return {
+      status: 500,
+      error: 'Server watermark dependency failed.',
+      hint: 'Set WATERMARK_STRICT=false to skip watermarking, or install Python/OpenCV on backend runtime.',
+    };
+  }
+
+  return {
+    status: 500,
+    error: 'Error processing file.',
+    hint: rawMessage,
+  };
+};
 
 const detectFileCategory = (file) => {
   const mimetype = (file.mimetype || '').toLowerCase();
@@ -182,12 +294,24 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     }
 
     let pHash = 'not_applicable';
+    let watermarkApplied = false;
+    let watermarkWarning = null;
 
     if (imageFile) {
       // 2. Apply watermark in-place only for images
       const watermarkText = `Content Verification - ${new Date().toISOString()}`;
-      await execa('python', ['src/watermark.py', filePath, watermarkText]); 
-      console.log(`Watermarking complete for ${originalFilename}`);
+      try {
+        const { pythonCommand } = await runWatermarkScript(filePath, watermarkText);
+        watermarkApplied = true;
+        console.log(`Watermarking complete for ${originalFilename} using ${pythonCommand}`);
+      } catch (watermarkError) {
+        if (WATERMARK_STRICT) {
+          throw watermarkError;
+        }
+
+        watermarkWarning = 'Watermark skipped due to unavailable Python/OpenCV dependencies on the server.';
+        console.warn(`Skipping watermark for ${originalFilename}: ${extractErrorMessage(watermarkError)}`);
+      }
       
       // 3. Compute pHash on the final, watermarked image
       pHash = await calculatePHash(filePath);
@@ -212,10 +336,14 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 
     res.json({
       message: imageFile
-        ? 'Image watermarked, processed, pinned to IPFS, and registered on-chain.'
+        ? (watermarkApplied
+          ? 'Image watermarked, processed, pinned to IPFS, and registered on-chain.'
+          : 'Image processed, pinned to IPFS, and registered on-chain (watermark skipped).')
         : 'File processed, pinned to IPFS, and registered on-chain.',
       filename: originalFilename,
       isImage: imageFile,
+      watermarkApplied: imageFile ? watermarkApplied : false,
+      ...(watermarkWarning ? { watermarkWarning } : {}),
       fileCategory: fileCategory,
       mimetype: req.file.mimetype || 'application/octet-stream',
       sha256: sha256Hash,
@@ -225,14 +353,13 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error processing file:', error.message);
-    if (error.code === 'CALL_EXCEPTION') {
-      return res.status(409).json({
-        error: 'File already registered on-chain.',
-        isDuplicate: true,
-      });
-    }
-    res.status(500).json({ error: 'Error processing file.' });
+    const classified = classifyProcessingError(error);
+    console.error('Error processing file:', extractErrorMessage(error));
+    return res.status(classified.status).json({
+      error: classified.error,
+      ...(classified.hint ? { hint: classified.hint } : {}),
+      ...(classified.isDuplicate ? { isDuplicate: true } : {}),
+    });
   } finally {
     fs.unlink(filePath, (err) => {
       if (err) console.error("Error deleting temp file:", err);
@@ -285,8 +412,12 @@ app.post('/api/verify', upload.single('file'), async (req, res) => {
     }
 
   } catch (error) {
-    console.error('Error processing verification file:', error);
-    res.status(500).json({ error: 'Error processing verification file.' });
+    const classified = classifyProcessingError(error);
+    console.error('Error processing verification file:', extractErrorMessage(error));
+    res.status(classified.status).json({
+      error: 'Error processing verification file.',
+      ...(classified.hint ? { hint: classified.hint } : {}),
+    });
   } finally {
     fs.unlink(filePath, (err) => {
       if (err) console.error("Error deleting temp file:", err);
@@ -297,6 +428,19 @@ app.post('/api/verify', upload.single('file'), async (req, res) => {
 // Simple health check route
 app.get('/api', (req, res) => {
   res.json({ message: 'Digital Content Verification API is running!' });
+});
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    config: {
+      rpcUrlConfigured: Boolean(RPC_URL),
+      contractAddressConfigured: Boolean(CONTRACT_ADDRESS),
+      privateKeyConfigured: Boolean(PRIVATE_KEY) || isLocalRpc,
+      pinataConfigured: Boolean(pinataJwtToken || (pinataApiKey && pinataApiSecret)),
+      watermarkStrict: WATERMARK_STRICT,
+      pythonBin: PYTHON_BIN || null,
+    },
+  });
 });
 
 app.use((err, req, res, next) => {

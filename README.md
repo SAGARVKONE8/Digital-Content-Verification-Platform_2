@@ -121,9 +121,11 @@ This will open your React app (usually on http://localhost:5173) in your browser
    - `CONTRACT_ADDRESS=<deployed-contract-address>`
    - `PRIVATE_KEY=<wallet-private-key-for-writes>`
    - `PINATA_JWT_TOKEN=<pinata-jwt-token>`
+   - `WATERMARK_STRICT=false` (recommended on Render unless Python/OpenCV is installed)
      - or use `PINATA_API_KEY` and `PINATA_API_SECRET`
 4. Deploy and verify health route:
    - `https://<your-render-service>.onrender.com/api`
+   - `https://<your-render-service>.onrender.com/api/health`
 
 ### Get `CONTRACT_ADDRESS` for Render (Amoy)
 
