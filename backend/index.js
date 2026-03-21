@@ -31,7 +31,10 @@ if (pinataJwtToken) {
 // --- ETHERS CONTRACT SETUP ---
 const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || '0x5FbDB2315678afecb367f032d93F642f64180aa3';
 const RPC_URL = process.env.RPC_URL || 'http://127.0.0.1:8545/';
-const PRIVATE_KEY = process.env.PRIVATE_KEY;
+const rawPrivateKey = (process.env.PRIVATE_KEY || '').trim();
+const PRIVATE_KEY = rawPrivateKey
+  ? (rawPrivateKey.startsWith('0x') ? rawPrivateKey : `0x${rawPrivateKey}`)
+  : '';
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 const isLocalRpc = /127\.0\.0\.1|localhost/.test(RPC_URL);

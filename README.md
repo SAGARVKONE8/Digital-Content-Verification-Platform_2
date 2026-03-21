@@ -125,6 +125,21 @@ This will open your React app (usually on http://localhost:5173) in your browser
 4. Deploy and verify health route:
    - `https://<your-render-service>.onrender.com/api`
 
+### Get `CONTRACT_ADDRESS` for Render (Amoy)
+
+1. Create blockchain deploy env:
+   - `backend/blockchain/.env` from `backend/blockchain/.env.example`
+2. Set:
+   - `ALCHEMY_AMOY_URL=<your-amoy-rpc-url>`
+   - `PRIVATE_KEY=<deployer-wallet-private-key>`
+3. Deploy contract:
+   - `cd backend/blockchain`
+   - `npx hardhat run scripts/deploy.ts --network amoy`
+4. Copy printed address (`GenesisRegistry deployed to: 0x...`) into Render:
+   - `CONTRACT_ADDRESS=0x...`
+   - `RPC_URL=<same-amoy-rpc-url>`
+   - `PRIVATE_KEY=<same-or-another-funded-wallet-private-key>`
+
 ### Final Architecture
 
 Frontend (Vercel) -> Backend API (Render) -> Blockchain + IPFS (Pinata)

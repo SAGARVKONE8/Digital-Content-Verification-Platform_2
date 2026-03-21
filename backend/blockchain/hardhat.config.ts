@@ -5,20 +5,29 @@ import "dotenv/config";
 import hardhatToolboxMochaEthers from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
 
 const ALCHEMY_AMOY_URL = process.env.ALCHEMY_AMOY_URL || "";
+const rawPrivateKey = (process.env.PRIVATE_KEY || "").trim();
+const PRIVATE_KEY = rawPrivateKey
+  ? (rawPrivateKey.startsWith("0x") ? rawPrivateKey : `0x${rawPrivateKey}`)
+  : "";
 const WALLET_MNEMONIC = process.env.WALLET_MNEMONIC || "";
 const hasAmoyUrl = Boolean(ALCHEMY_AMOY_URL.trim());
+const hasPrivateKey = Boolean(PRIVATE_KEY.trim());
 const hasWalletMnemonic = Boolean(WALLET_MNEMONIC.trim());
-const hasCompleteAmoyConfig = hasAmoyUrl && hasWalletMnemonic;
+const hasWalletConfig = hasPrivateKey || hasWalletMnemonic;
+const hasCompleteAmoyConfig = hasAmoyUrl && hasWalletConfig;
 
-if (hasAmoyUrl && !hasWalletMnemonic) {
+if (hasAmoyUrl && !hasWalletConfig) {
   console.warn(
-    "WALLET_MNEMONIC is not set. Add it to enable Amoy deployment."
+    "Set PRIVATE_KEY (recommended) or WALLET_MNEMONIC to enable Amoy deployment."
   );
 }
-if (!hasAmoyUrl && hasWalletMnemonic) {
+if (!hasAmoyUrl && hasWalletConfig) {
   console.warn(
     "ALCHEMY_AMOY_URL is not set. Add it to enable Amoy deployment."
   );
+}
+if (hasPrivateKey && hasWalletMnemonic) {
+  console.warn("Both PRIVATE_KEY and WALLET_MNEMONIC are set. PRIVATE_KEY will be used.");
 }
 
 const config: HardhatUserConfig = {
@@ -28,12 +37,14 @@ const config: HardhatUserConfig = {
       amoy: {
         type: "http",
         url: ALCHEMY_AMOY_URL,
-        accounts: {
-          mnemonic: WALLET_MNEMONIC,
-          path: "m/44'/60'/0'/0",
-          initialIndex: 0,
-          count: 1,
-        },
+        accounts: hasPrivateKey
+          ? [PRIVATE_KEY]
+          : {
+              mnemonic: WALLET_MNEMONIC,
+              path: "m/44'/60'/0'/0",
+              initialIndex: 0,
+              count: 1,
+            },
       },
     }),
   },
