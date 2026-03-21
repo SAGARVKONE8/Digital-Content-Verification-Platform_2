@@ -1,0 +1,39 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_24-ec5e15b94772679d0bb6b3c803eff1b4f58832d9",
+  "solcVersion": "0.8.24",
+  "solcLongVersion": "0.8.24+commit.e11b9ed9",
+  "userSourceNameMap": {
+    "contracts/GenesisRegistry.sol": "project/contracts/GenesisRegistry.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "shanghai",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode",
+            "evm.deployedBytecode",
+            "evm.methodIdentifiers",
+            "metadata"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/GenesisRegistry.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\n\n// This is the main contract for the Digital Content Verification Platform\ncontract GenesisRegistry {\n    \n    // A struct to hold the authenticity data for each file\n    struct ContentRecord {\n        string sha256Hash;\n        string pHash;\n        string ipfsCid;\n        address creator; // The wallet address that registered this content\n        uint256 timestamp; // The time it was registered\n    }\n\n    // We will store all records in a mapping.\n    // We'll use the SHA-256 hash (which is unique) as the key.\n    mapping(string => ContentRecord) public records;\n\n    // This event will be emitted every time a new record is created.\n    // Our Node.js backend can listen for this.\n    event RecordCreated(\n        string indexed sha256Hash,\n        string pHash,\n        string ipfsCid,\n        address indexed creator,\n        uint256 timestamp\n    );\n\n    /**\n     * @notice Registers a new piece of content on the blockchain.\n     * @param _sha256Hash The SHA-256 hash of the watermarked file.\n     * @param _pHash The perceptual hash of the watermarked file.\n     * @param _ipfsCid The IPFS CID where the watermarked file is stored.\n     */\n    function createRecord(\n        string memory _sha256Hash,\n        string memory _pHash,\n        string memory _ipfsCid\n    ) public {\n        // Check if a record with this SHA-256 hash already exists.\n        // We use bytes(..).length > 0 to check if the string is empty\n        // because the 'creator' field of a non-existent struct will be 0x0.\n        require(\n            records[_sha256Hash].creator == address(0),\n            \"Record with this SHA-256 hash already exists.\"\n        );\n\n        // Create the new record in memory\n        ContentRecord memory newRecord = ContentRecord({\n            sha256Hash: _sha256Hash,\n            pHash: _pHash,\n            ipfsCid: _ipfsCid,\n            creator: msg.sender, // 'msg.sender' is the wallet calling this function\n            timestamp: block.timestamp // 'block.timestamp' is the current blockchain time\n        });\n\n        // Save the new record to storage\n        records[_sha256Hash] = newRecord;\n\n        // Emit the event to log this action\n        emit RecordCreated(\n            _sha256Hash,\n            _pHash,\n            _ipfsCid,\n            msg.sender,\n            block.timestamp\n        );\n    }\n\n    /**\n     * @notice Retrieves a content record using its SHA-256 hash.\n     * @param _sha256Hash The SHA-256 hash to look up.\n     * @return The stored ContentRecord.\n     */\n    function getRecord(string memory _sha256Hash) \n        public \n        view \n        returns (ContentRecord memory) \n    {\n        return records[_sha256Hash];\n    }\n}\n"
+      }
+    }
+  }
+}
