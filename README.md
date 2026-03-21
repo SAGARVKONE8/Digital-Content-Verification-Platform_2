@@ -127,19 +127,19 @@ This will open your React app (usually on http://localhost:5173) in your browser
    - `https://<your-render-service>.onrender.com/api`
    - `https://<your-render-service>.onrender.com/api/health`
 
-### Get `CONTRACT_ADDRESS` for Render (Amoy)
+### Get `CONTRACT_ADDRESS` for Render (Sepolia)
 
 1. Create blockchain deploy env:
    - `backend/blockchain/.env` from `backend/blockchain/.env.example`
 2. Set:
-   - `ALCHEMY_AMOY_URL=<your-amoy-rpc-url>`
+   - `RPC_URL=<your-sepolia-rpc-url>`
    - `PRIVATE_KEY=<deployer-wallet-private-key>`
 3. Deploy contract:
    - `cd backend/blockchain`
-   - `npx hardhat run scripts/deploy.ts --network amoy`
-4. Copy printed address (`GenesisRegistry deployed to: 0x...`) into Render:
+   - `npx hardhat run scripts/deploy.js --network sepolia`
+4. Copy printed address (`Contract deployed to: 0x...`) into Render:
    - `CONTRACT_ADDRESS=0x...`
-   - `RPC_URL=<same-amoy-rpc-url>`
+   - `RPC_URL=<same-sepolia-rpc-url>`
    - `PRIVATE_KEY=<same-or-another-funded-wallet-private-key>`
 
 ### Final Architecture
