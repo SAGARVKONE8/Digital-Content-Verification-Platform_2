@@ -11,7 +11,7 @@ With the exponential rise of AI-generated images and videos on social media, it 
 ## ✨ Core Features
 
 * **Simple Upload:** Upload photos via a simple React interface.
-* **Watermarking:** Applies a (currently visible) watermark using a Python/OpenCV backend script.
+* **Watermarking:** Applies a visible watermark in the Node backend (Jimp).
 * **Unique Hashing:** Generates unique content hashes (SHA-256 for integrity, Perceptual Hash for similarity).
 * **Blockchain Registration:** Registers a timestamped proof of authenticity on a secure blockchain (Hardhat local node).
 * **Decentralized Storage:** Stores the watermarked content on IPFS (via Pinata).
@@ -24,7 +24,7 @@ With the exponential rise of AI-generated images and videos on social media, it 
 | **Frontend** | React (Vite) |
 | **Backend** | Node.js, Express.js, `ethers.js` |
 | **File Uploads** | Multer |
-| **Image Processing** | Python, OpenCV (called from Node.js) |
+| **Image Processing** | Jimp (Node.js) |
 | **Blockchain** | Hardhat, Solidity, Ethers.js |
 | **Decentralized Storage** | IPFS (Pinata) |
 | **Hashing** | `jimp` (pHash), Node.js `crypto` (SHA-256) |
@@ -121,7 +121,7 @@ This will open your React app (usually on http://localhost:5173) in your browser
    - `CONTRACT_ADDRESS=<deployed-contract-address>`
    - `PRIVATE_KEY=<wallet-private-key-for-writes>`
    - `PINATA_JWT_TOKEN=<pinata-jwt-token>`
-   - `WATERMARK_STRICT=false` (recommended on Render unless Python/OpenCV is installed)
+   - `WATERMARK_STRICT=false` (recommended for resilient uploads if watermarking fails)
      - or use `PINATA_API_KEY` and `PINATA_API_SECRET`
 4. Deploy and verify health route:
    - `https://<your-render-service>.onrender.com/api`

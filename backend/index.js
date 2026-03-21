@@ -4,9 +4,8 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import 'dotenv/config';
-import { execa } from 'execa';
 import pinataSDK from '@pinata/sdk';
-import { calculateSHA256, calculatePHash } from './src/hashUtils.js';
+import { applyVisibleWatermark, calculateSHA256, calculatePHash } from './src/hashUtils.js';
 
 // --- ETHERS IMPORTS ---
 import { ethers } from 'ethers';
@@ -122,13 +121,6 @@ const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.ogg', '.m4a', '.flac', '.aac
 const DOCUMENT_EXTENSIONS = new Set(['.pdf', '.csv', '.txt', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx']);
 const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB
 const WATERMARK_STRICT = process.env.WATERMARK_STRICT === 'true';
-const PYTHON_BIN = (process.env.PYTHON_BIN || '').trim();
-
-const getPythonCandidates = () => {
-  const defaults = ['python', 'python3'];
-  if (!PYTHON_BIN) return defaults;
-  return [PYTHON_BIN, ...defaults.filter((candidate) => candidate !== PYTHON_BIN)];
-};
 
 const extractErrorMessage = (error) => {
   const candidates = [
@@ -139,25 +131,6 @@ const extractErrorMessage = (error) => {
   ];
 
   return candidates.map((value) => value.trim()).find(Boolean) || 'Unknown error';
-};
-
-const runWatermarkScript = async (filePath, watermarkText) => {
-  const pythonCandidates = getPythonCandidates();
-  let lastError;
-
-  for (const pythonCommand of pythonCandidates) {
-    try {
-      await execa(pythonCommand, ['src/watermark.py', filePath, watermarkText]);
-      return { pythonCommand };
-    } catch (error) {
-      lastError = error;
-      console.warn(`Watermark command "${pythonCommand}" failed: ${extractErrorMessage(error)}`);
-    }
-  }
-
-  const combinedError = new Error(`Watermark script failed for commands: ${pythonCandidates.join(', ')}`);
-  combinedError.cause = lastError;
-  throw combinedError;
 };
 
 const classifyProcessingError = (error) => {
@@ -217,13 +190,13 @@ const classifyProcessingError = (error) => {
 
   if (
     combinedMessage.includes('watermark') ||
-    combinedMessage.includes('cv2') ||
-    combinedMessage.includes('python')
+    combinedMessage.includes('jimp') ||
+    combinedMessage.includes('font')
   ) {
     return {
       status: 500,
       error: 'Server watermark dependency failed.',
-      hint: 'Set WATERMARK_STRICT=false to skip watermarking, or install Python/OpenCV on backend runtime.',
+      hint: 'Set WATERMARK_STRICT=false to skip watermarking, or verify Jimp font assets are available.',
     };
   }
 
@@ -373,15 +346,15 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       // 2. Apply watermark in-place only for images
       const watermarkText = `Content Verification - ${new Date().toISOString()}`;
       try {
-        const { pythonCommand } = await runWatermarkScript(filePath, watermarkText);
+        await applyVisibleWatermark(filePath, watermarkText);
         watermarkApplied = true;
-        console.log(`Watermarking complete for ${originalFilename} using ${pythonCommand}`);
+        console.log(`Watermarking complete for ${originalFilename} using Node/Jimp`);
       } catch (watermarkError) {
         if (WATERMARK_STRICT) {
           throw watermarkError;
         }
 
-        watermarkWarning = 'Watermark skipped due to unavailable Python/OpenCV dependencies on the server.';
+        watermarkWarning = 'Watermark skipped due to a server watermark processing issue.';
         console.warn(`Skipping watermark for ${originalFilename}: ${extractErrorMessage(watermarkError)}`);
       }
       
@@ -517,7 +490,7 @@ app.get('/api/health', async (req, res) => {
       corsConfigured: Boolean(corsOrigin),
       corsOrigin: corsOrigin || null,
       watermarkStrict: WATERMARK_STRICT,
-      pythonBin: PYTHON_BIN || null,
+      watermarkEngine: 'node-jimp',
     },
     runtime,
   });

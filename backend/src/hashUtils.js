@@ -1,6 +1,50 @@
 import crypto from 'crypto';
 import fs from 'fs';
-import { Jimp } from 'jimp'; // This import is correct
+import path from 'path';
+import { Jimp, loadFont, measureText, measureTextHeight } from 'jimp';
+
+const WATERMARK_FONT_PATHS = [
+  path.join(process.cwd(), 'node_modules', '@jimp', 'plugin-print', 'fonts', 'open-sans', 'open-sans-32-white', 'open-sans-32-white.fnt'),
+  path.join(process.cwd(), 'node_modules', '@jimp', 'plugin-print', 'fonts', 'open-sans', 'open-sans-16-white', 'open-sans-16-white.fnt'),
+  path.join(process.cwd(), 'node_modules', '@jimp', 'plugin-print', 'fonts', 'open-sans', 'open-sans-8-white', 'open-sans-8-white.fnt'),
+];
+
+const fontPromiseCache = new Map();
+
+const getLoadedFont = async (fontPath) => {
+  if (!fontPromiseCache.has(fontPath)) {
+    fontPromiseCache.set(fontPath, loadFont(fontPath));
+  }
+
+  return fontPromiseCache.get(fontPath);
+};
+
+const getBestFitFont = async (text, imageWidth, margin) => {
+  const maxTextWidth = Math.max(120, imageWidth - (margin * 2));
+
+  for (const fontPath of WATERMARK_FONT_PATHS) {
+    try {
+      const font = await getLoadedFont(fontPath);
+      const width = measureText(font, text);
+      if (width <= maxTextWidth) {
+        return font;
+      }
+    } catch (error) {
+      // Try the next font path if this one isn't available.
+      continue;
+    }
+  }
+
+  for (const fontPath of WATERMARK_FONT_PATHS) {
+    try {
+      return await getLoadedFont(fontPath);
+    } catch (error) {
+      continue;
+    }
+  }
+
+  throw new Error('No Jimp watermark font could be loaded.');
+};
 
 /**
  * Calculates the SHA-256 hash of a file.
@@ -43,4 +87,29 @@ export const calculatePHash = async (filePath) => {
     }
     throw err;
   }
+};
+
+/**
+ * Adds a visible watermark directly in Node (no Python/OpenCV dependency).
+ */
+export const applyVisibleWatermark = async (filePath, watermarkText) => {
+  const image = await Jimp.read(filePath);
+  const safeText = String(watermarkText || '').trim().slice(0, 220) || 'Content Verification';
+
+  const margin = Math.max(10, Math.floor(Math.min(image.bitmap.width, image.bitmap.height) * 0.03));
+  const maxTextWidth = Math.max(120, image.bitmap.width - (margin * 2));
+  const font = await getBestFitFont(safeText, image.bitmap.width, margin);
+
+  const textHeight = measureTextHeight(font, safeText, maxTextWidth);
+  const y = Math.max(margin, image.bitmap.height - textHeight - margin);
+
+  image.print({
+    font,
+    x: margin,
+    y,
+    text: safeText,
+    maxWidth: maxTextWidth,
+  });
+
+  await image.write(filePath);
 };
