@@ -62,13 +62,49 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 // --- Middleware ---
 const app = express();
 const PORT = process.env.PORT || 3001;
-const corsOrigin = process.env.CORS_ORIGIN;
-if (corsOrigin) {
-  const allowedOrigins = corsOrigin.split(',').map((origin) => origin.trim()).filter(Boolean);
-  app.use(cors({ origin: allowedOrigins }));
-} else {
-  app.use(cors());
-}
+const corsOrigin = (process.env.CORS_ORIGIN || '').trim();
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const normalizeOrigin = (value) => value.replace(/\/$/, '');
+
+const parseAllowedOrigins = (originCsv) => {
+  const entries = originCsv.split(',').map((entry) => normalizeOrigin(entry.trim())).filter(Boolean);
+  const exact = new Set();
+  const patterns = [];
+
+  for (const entry of entries) {
+    if (entry.includes('*')) {
+      const regex = new RegExp(`^${escapeRegex(entry).replace(/\\\*/g, '.*')}$`);
+      patterns.push(regex);
+    } else {
+      exact.add(entry);
+    }
+  }
+
+  return { exact, patterns };
+};
+
+const configuredCors = corsOrigin ? parseAllowedOrigins(corsOrigin) : null;
+
+const isOriginAllowed = (origin) => {
+  if (!origin) return true;
+  if (!configuredCors) return true;
+
+  const normalized = normalizeOrigin(origin);
+  if (configuredCors.exact.has(normalized)) return true;
+  return configuredCors.patterns.some((pattern) => pattern.test(normalized));
+};
+
+app.use(cors({
+  origin: (origin, cb) => {
+    if (isOriginAllowed(origin)) {
+      return cb(null, true);
+    }
+
+    return cb(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  optionsSuccessStatus: 200,
+}));
 app.use(express.json());
 
 // --- Multer Configuration ---
@@ -478,6 +514,8 @@ app.get('/api/health', async (req, res) => {
       contractAddressConfigured: Boolean(CONTRACT_ADDRESS),
       privateKeyConfigured: Boolean(PRIVATE_KEY) || isLocalRpc,
       pinataConfigured: Boolean(pinataJwtToken || (pinataApiKey && pinataApiSecret)),
+      corsConfigured: Boolean(corsOrigin),
+      corsOrigin: corsOrigin || null,
       watermarkStrict: WATERMARK_STRICT,
       pythonBin: PYTHON_BIN || null,
     },
@@ -495,6 +533,13 @@ app.use((err, req, res, next) => {
 
   if (err && err.message && err.message.includes('Unsupported file type')) {
     return res.status(400).json({ error: err.message });
+  }
+  
+  if (err && err.message && err.message.includes('CORS blocked for origin')) {
+    return res.status(403).json({
+      error: 'CORS blocked request origin.',
+      hint: 'Add your Vercel domain to CORS_ORIGIN (supports comma-separated values and wildcard like https://*.vercel.app).',
+    });
   }
 
   return next(err);

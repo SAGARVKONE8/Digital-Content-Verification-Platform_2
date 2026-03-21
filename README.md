@@ -116,7 +116,7 @@ This will open your React app (usually on http://localhost:5173) in your browser
    - Start Command: `npm start`
 3. Add backend environment variables:
    - `PORT=5000` (or leave unset and let Render inject it)
-   - `CORS_ORIGIN=https://<your-vercel-project>.vercel.app`
+   - `CORS_ORIGIN=https://<your-vercel-project>.vercel.app,https://*.vercel.app`
    - `RPC_URL=<your-chain-rpc-url>`
    - `CONTRACT_ADDRESS=<deployed-contract-address>`
    - `PRIVATE_KEY=<wallet-private-key-for-writes>`

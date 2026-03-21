@@ -4,6 +4,9 @@ import './App.css';
 
 const IPFS_GATEWAY = "https://gateway.pinata.cloud/ipfs/";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001').replace(/\/$/, '');
+const IS_BROWSER_LOCALHOST =
+  typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const API_POINTS_TO_LOCALHOST = /localhost|127\.0\.0\.1/.test(API_BASE_URL);
 const ACCEPTED_FILE_TYPES = "image/*,video/*,audio/*,.pdf,.csv,.txt,.doc,.docx,.xls,.xlsx,.ppt,.pptx";
 const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = new Set([
@@ -22,6 +25,26 @@ function App() {
   const [verifyFile, setVerifyFile] = useState(null);
   const [verifyResult, setVerifyResult] = useState(null); 
   const [isVerifying, setIsVerifying] = useState(false);
+  
+  const getRequestErrorMessage = (error) => {
+    const serverError = error?.response?.data?.error;
+    const serverHint = error?.response?.data?.hint;
+
+    if (serverError) {
+      return serverHint ? `${serverError} (${serverHint})` : serverError;
+    }
+
+    // Browser blocked request before server response (usually CORS/network misconfig)
+    if (!error?.response) {
+      if (!IS_BROWSER_LOCALHOST && API_POINTS_TO_LOCALHOST) {
+        return 'Frontend API is still pointing to localhost. Set VITE_API_BASE_URL in Vercel to your Render backend URL.';
+      }
+
+      return 'Could not connect to server. Check VITE_API_BASE_URL, Render service status, and backend CORS_ORIGIN.';
+    }
+
+    return 'Could not connect to server.';
+  };
 
   const validateSelectedFile = (file) => {
     if (!file) return { valid: false, message: 'Please select a file.' };
@@ -78,7 +101,7 @@ function App() {
       document.getElementById('upload-input').value = null; 
     } catch (error) {
       console.error('Error uploading file:', error);
-      setUploadResult({ message: error.response?.data?.error || 'Could not connect to server.', isError: true });
+      setUploadResult({ message: getRequestErrorMessage(error), isError: true });
     } finally {
       setIsUploading(false);
     }
@@ -114,7 +137,7 @@ function App() {
       setVerifyResult(response.data); 
     } catch (error) {
       console.error('Error verifying file:', error);
-      setVerifyResult({ message: error.response?.data?.error || 'Could not connect to server.' });
+      setVerifyResult({ message: getRequestErrorMessage(error) });
     } finally {
       setIsVerifying(false);
       setVerifyFile(null); 
