@@ -198,6 +198,42 @@ const classifyProcessingError = (error) => {
   };
 };
 
+const getRuntimeHealth = async () => {
+  const runtime = {
+    rpcReachable: false,
+    contractCodePresent: false,
+    contractReadOk: false,
+    chainId: null,
+    blockNumber: null,
+  };
+
+  try {
+    const network = await provider.getNetwork();
+    runtime.chainId = network?.chainId?.toString?.() || null;
+    runtime.blockNumber = await provider.getBlockNumber();
+    runtime.rpcReachable = true;
+
+    const contractCode = await provider.getCode(CONTRACT_ADDRESS);
+    runtime.contractCodePresent = Boolean(contractCode && contractCode !== '0x');
+
+    if (runtime.contractCodePresent) {
+      try {
+        await genesisContract.getRecord('__health_probe__');
+        runtime.contractReadOk = true;
+      } catch (readError) {
+        runtime.contractReadOk = false;
+        runtime.contractReadError = extractErrorMessage(readError);
+      }
+    } else {
+      runtime.contractReadError = 'No contract bytecode at CONTRACT_ADDRESS for the configured RPC network.';
+    }
+  } catch (error) {
+    runtime.rpcError = extractErrorMessage(error);
+  }
+
+  return runtime;
+};
+
 const detectFileCategory = (file) => {
   const mimetype = (file.mimetype || '').toLowerCase();
   const ext = path.extname(file.originalname || '').toLowerCase();
@@ -429,9 +465,14 @@ app.post('/api/verify', upload.single('file'), async (req, res) => {
 app.get('/api', (req, res) => {
   res.json({ message: 'Digital Content Verification API is running!' });
 });
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
+app.get('/api/health', async (req, res) => {
+  const runtime = await getRuntimeHealth();
+  const status = runtime.rpcReachable && runtime.contractCodePresent && runtime.contractReadOk
+    ? 'ok'
+    : 'degraded';
+
+  res.status(status === 'ok' ? 200 : 503).json({
+    status,
     config: {
       rpcUrlConfigured: Boolean(RPC_URL),
       contractAddressConfigured: Boolean(CONTRACT_ADDRESS),
@@ -440,6 +481,7 @@ app.get('/api/health', (req, res) => {
       watermarkStrict: WATERMARK_STRICT,
       pythonBin: PYTHON_BIN || null,
     },
+    runtime,
   });
 });
 
@@ -461,4 +503,12 @@ app.use((err, req, res, next) => {
 // --- Server Startup ---
 app.listen(PORT, () => {
   console.log(`🚀 Digital Content Verification server listening on port ${PORT}`);
+  void (async () => {
+    const runtime = await getRuntimeHealth();
+    if (runtime.rpcReachable && runtime.contractCodePresent && runtime.contractReadOk) {
+      console.log(`✅ Runtime health check passed (chainId=${runtime.chainId}, block=${runtime.blockNumber}).`);
+      return;
+    }
+    console.warn('⚠️ Runtime health check degraded:', runtime);
+  })();
 });
