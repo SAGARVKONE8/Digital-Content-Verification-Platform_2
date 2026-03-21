@@ -341,6 +341,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     let pHash = 'not_applicable';
     let watermarkApplied = false;
     let watermarkWarning = null;
+    let pHashWarning = null;
 
     if (imageFile) {
       // 2. Apply watermark in-place only for images
@@ -359,7 +360,17 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       }
       
       // 3. Compute pHash on the final, watermarked image
-      pHash = await calculatePHash(filePath);
+      try {
+        pHash = await calculatePHash(filePath);
+      } catch (pHashError) {
+        if (WATERMARK_STRICT) {
+          throw pHashError;
+        }
+
+        pHash = 'not_available';
+        pHashWarning = 'Perceptual hash skipped due to an image processing issue.';
+        console.warn(`Skipping pHash for ${originalFilename}: ${extractErrorMessage(pHashError)}`);
+      }
       console.log(`Hashes complete: SHA-256 (original): ${sha256Hash}, pHash (watermarked): ${pHash}`);
     } else {
       console.log(`Non-image file detected (${originalFilename}). Skipping watermark/pHash.`);
@@ -389,6 +400,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       isImage: imageFile,
       watermarkApplied: imageFile ? watermarkApplied : false,
       ...(watermarkWarning ? { watermarkWarning } : {}),
+      ...(pHashWarning ? { pHashWarning } : {}),
       fileCategory: fileCategory,
       mimetype: req.file.mimetype || 'application/octet-stream',
       sha256: sha256Hash,
