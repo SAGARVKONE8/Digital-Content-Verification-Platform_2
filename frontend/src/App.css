@@ -237,8 +237,9 @@ button:disabled {
 }
 
 .download-button {
-  background: linear-gradient(120deg, #4a0000, #3d0000);
-  color: #ffdddd;
+  background: linear-gradient(120deg, var(--accent-2), var(--accent));
+  color: #2a0000;
+  box-shadow: 0 10px 26px rgba(255, 71, 87, 0.35);
 }
 
 .result-card {
