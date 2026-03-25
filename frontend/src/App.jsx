@@ -300,8 +300,8 @@ function App() {
                 <div className="record-details">
                   <h3 className="status-authentic">Authentic</h3>
                   <pre>
-                    <strong>Creator:</strong> {verifyResult.record.creator}<br />
-                    <strong>Timestamp:</strong> {formatTimestamp(verifyResult.record.timestamp)}<br />
+                    <strong>Creator:</strong> <span className="hash-value">{verifyResult.record.creator}</span><br />
+                    <strong>Timestamp:</strong> <span className="hash-value">{formatTimestamp(verifyResult.record.timestamp)}</span><br />
                     <strong>IPFS CID:</strong> <span className="hash-value">{verifyResult.record.ipfsCid}</span><br />
                     <strong>SHA-256:</strong> <span className="hash-value">{verifyResult.record.sha256}</span>
                   </pre>
