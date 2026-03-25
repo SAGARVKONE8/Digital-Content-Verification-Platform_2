@@ -252,6 +252,7 @@ function App() {
           {uploadResult && (
             <div className="result-card">
               <p className={uploadResult.isError ? 'message-error' : 'message-success'}>
+                <span className="status-icon">{uploadResult.isError ? '❌' : '✔️'}</span>
                 {uploadResult.message}
               </p>
 
@@ -260,8 +261,8 @@ function App() {
                   <h3 className="status-authentic">Registered</h3>
                   {renderUploadPreview()}
                   <pre>
-                    <strong>SHA-256:</strong> {uploadResult.sha256}<br />
-                    <strong>IPFS CID:</strong> {uploadResult.ipfsCid}
+                    <strong>SHA-256:</strong> <span className="hash-value">{uploadResult.sha256}</span><br />
+                    <strong>IPFS CID:</strong> <span className="hash-value">{uploadResult.ipfsCid}</span>
                   </pre>
                   <button
                     onClick={() => handleDownload(uploadResult.ipfsCid, uploadResult.filename)}
@@ -291,7 +292,8 @@ function App() {
 
           {verifyResult && (
             <div className="result-card">
-              <p className={verifyResult.isAuthentic ? 'message-success' : 'message-error'}>
+              <p className={verifyResult.isAuthentic === true ? 'message-success' : 'message-error'}>
+                <span className="status-icon">{verifyResult.isAuthentic === true ? '✔️' : '❌'}</span>
                 {verifyResult.message}
               </p>
               {verifyResult.isAuthentic === true && (
@@ -300,8 +302,8 @@ function App() {
                   <pre>
                     <strong>Creator:</strong> {verifyResult.record.creator}<br />
                     <strong>Timestamp:</strong> {formatTimestamp(verifyResult.record.timestamp)}<br />
-                    <strong>IPFS CID:</strong> {verifyResult.record.ipfsCid}<br />
-                    <strong>SHA-256:</strong> {verifyResult.record.sha256}
+                    <strong>IPFS CID:</strong> <span className="hash-value">{verifyResult.record.ipfsCid}</span><br />
+                    <strong>SHA-256:</strong> <span className="hash-value">{verifyResult.record.sha256}</span>
                   </pre>
                 </div>
               )}

@@ -9,8 +9,8 @@
   --muted: #ffaaaa;
   --accent: #ff4757;
   --accent-2: #ff6b7a;
-  --danger: #ff0000;
-  --success: #ff6666;
+  --danger: #ff4455;
+  --success: #2ecc71;
 }
 
 * {
@@ -254,14 +254,34 @@ button:disabled {
 .message-error {
   margin: 0 0 8px;
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
 }
 
 .message-success {
   color: var(--success);
+  background: rgba(46, 204, 113, 0.16);
+  border-color: rgba(46, 204, 113, 0.35);
 }
 
 .message-error {
   color: var(--danger);
+  background: rgba(255, 68, 85, 0.16);
+  border-color: rgba(255, 68, 85, 0.35);
+}
+
+.status-icon {
+  font-size: 1.05rem;
+}
+
+.hash-value {
+  color: #f7f23a;
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 700;
 }
 
 .status-authentic,
